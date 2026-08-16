@@ -1,0 +1,64 @@
+{
+  "id": "completion_accept",
+  "description": "Bright confirm gesture for accepted completion items.",
+  "tail_ms": 40,
+  "voices": [
+    {
+      "waveform": "triangle",
+      "duration_ms": 58,
+      "gain": 0.27,
+      "pan": -0.12,
+      "pitch": {
+        "start_hz": 660,
+        "end_hz": 740,
+        "curve": "log"
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 18,
+        "sustain": 0.1,
+        "release_ms": 24
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 36,
+      "duration_ms": 74,
+      "gain": 0.32,
+      "pan": 0.16,
+      "pitch": {
+        "start_hz": 990,
+        "end_hz": 1320
+      },
+      "adsr": {
+        "attack_ms": 2,
+        "decay_ms": 24,
+        "sustain": 0.0,
+        "release_ms": 34
+      }
+    },
+    {
+      "waveform": "noise",
+      "delay_ms": 4,
+      "duration_ms": 20,
+      "gain": 0.018,
+      "filter": {
+        "type": "highpass",
+        "cutoff_hz": 2800
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 6,
+        "sustain": 0.0,
+        "release_ms": 10
+      }
+    }
+  ],
+  "effects": {
+    "delay": {
+      "delay_ms": 42,
+      "mix": 0.08,
+      "feedback": 0.12
+    }
+  }
+}

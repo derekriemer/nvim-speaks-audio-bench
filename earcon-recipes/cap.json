@@ -1,0 +1,49 @@
+{
+  "id": "cap",
+  "description": "Short upward sparkle for capital letters.",
+  "tail_ms": 32,
+  "gain": 0.9,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 58,
+      "gain": 0.34,
+      "pan": -0.12,
+      "pitch": {
+        "start_hz": 880,
+        "end_hz": 1175,
+        "curve": "log"
+      },
+      "adsr": {
+        "attack_ms": 2,
+        "decay_ms": 28,
+        "sustain": 0.18,
+        "release_ms": 18
+      }
+    },
+    {
+      "waveform": "triangle",
+      "delay_ms": 12,
+      "duration_ms": 42,
+      "gain": 0.16,
+      "pan": 0.18,
+      "pitch": {
+        "start_hz": 1760,
+        "end_hz": 2093
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 18,
+        "sustain": 0.0,
+        "release_ms": 16
+      }
+    }
+  ],
+  "effects": {
+    "delay": {
+      "delay_ms": 28,
+      "mix": 0.08,
+      "feedback": 0.1
+    }
+  }
+}

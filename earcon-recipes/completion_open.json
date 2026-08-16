@@ -1,0 +1,64 @@
+{
+  "id": "completion_open",
+  "description": "Two-note open gesture for completion menu appearance.",
+  "tail_ms": 40,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 66,
+      "gain": 0.25,
+      "pan": -0.22,
+      "pitch": {
+        "start_hz": 520,
+        "end_hz": 610
+      },
+      "adsr": {
+        "attack_ms": 2,
+        "decay_ms": 22,
+        "sustain": 0.12,
+        "release_ms": 30
+      }
+    },
+    {
+      "waveform": "triangle",
+      "delay_ms": 42,
+      "duration_ms": 72,
+      "gain": 0.28,
+      "pan": 0.22,
+      "pitch": {
+        "start_hz": 780,
+        "end_hz": 880
+      },
+      "adsr": {
+        "attack_ms": 2,
+        "decay_ms": 26,
+        "sustain": 0.1,
+        "release_ms": 30
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 42,
+      "duration_ms": 56,
+      "gain": 0.08,
+      "pan": 0.0,
+      "pitch": {
+        "start_hz": 1560,
+        "end_hz": 1760
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 14,
+        "sustain": 0.0,
+        "release_ms": 22
+      }
+    }
+  ],
+  "effects": {
+    "delay": {
+      "delay_ms": 34,
+      "mix": 0.07,
+      "feedback": 0.08
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "id": "boundary",
+  "description": "Low damped thud for movement boundaries.",
+  "tail_ms": 44,
+  "gain": 0.95,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 120,
+      "gain": 0.44,
+      "pan": 0.0,
+      "pitch": {
+        "start_hz": 190,
+        "end_hz": 112,
+        "curve": "exp"
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 42,
+        "sustain": 0.16,
+        "release_ms": 58
+      }
+    },
+    {
+      "waveform": "triangle",
+      "duration_ms": 96,
+      "gain": 0.24,
+      "pan": -0.08,
+      "pitch": {
+        "start_hz": 95,
+        "end_hz": 62
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 28,
+        "sustain": 0.1,
+        "release_ms": 54
+      }
+    },
+    {
+      "waveform": "noise",
+      "duration_ms": 34,
+      "gain": 0.035,
+      "pan": 0.08,
+      "filter": {
+        "type": "lowpass",
+        "cutoff_hz": 700
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 8,
+        "sustain": 0.0,
+        "release_ms": 20
+      }
+    }
+  ]
+}

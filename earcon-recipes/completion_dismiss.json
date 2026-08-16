@@ -1,0 +1,63 @@
+{
+  "id": "completion_dismiss",
+  "description": "Short downward close gesture for dismissed completion menus.",
+  "tail_ms": 42,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 74,
+      "gain": 0.27,
+      "pan": 0.14,
+      "pitch": {
+        "start_hz": 440,
+        "end_hz": 330,
+        "curve": "exp"
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 22,
+        "sustain": 0.12,
+        "release_ms": 34
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 30,
+      "duration_ms": 84,
+      "gain": 0.22,
+      "pan": -0.16,
+      "pitch": {
+        "start_hz": 300,
+        "end_hz": 220
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 26,
+        "sustain": 0.08,
+        "release_ms": 42
+      }
+    },
+    {
+      "waveform": "noise",
+      "duration_ms": 22,
+      "gain": 0.016,
+      "filter": {
+        "type": "highpass",
+        "cutoff_hz": 2400
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 6,
+        "sustain": 0.0,
+        "release_ms": 12
+      }
+    }
+  ],
+  "effects": {
+    "delay": {
+      "delay_ms": 36,
+      "mix": 0.07,
+      "feedback": 0.08
+    }
+  }
+}

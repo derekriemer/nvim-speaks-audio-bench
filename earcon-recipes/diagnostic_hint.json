@@ -1,0 +1,25 @@
+{
+  "id": "diagnostic_hint",
+  "description": "Barely-there high tick for LSP hints.",
+  "tail_ms": 30,
+  "gain": 0.60,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 58,
+      "gain": 0.22,
+      "pan": 0.0,
+      "pitch": {
+        "start_hz": 990,
+        "end_hz": 1244,
+        "curve": "log"
+      },
+      "adsr": {
+        "attack_ms": 2,
+        "decay_ms": 20,
+        "sustain": 0.0,
+        "release_ms": 28
+      }
+    }
+  ]
+}

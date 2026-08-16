@@ -1,0 +1,99 @@
+{
+  "id": "fold_b",
+  "description": "Outward harmonic bloom: center A alone, inner fifths join at 40ms, outer octaves at 80ms — second fold candidate.",
+  "tail_ms": 55,
+  "gain": 0.85,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 150,
+      "gain": 0.28,
+      "pan": 0.0,
+      "pitch": {
+        "start_hz": 440,
+        "end_hz": 440
+      },
+      "adsr": {
+        "attack_ms": 6,
+        "decay_ms": 36,
+        "sustain": 0.20,
+        "release_ms": 70
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 40,
+      "duration_ms": 120,
+      "gain": 0.20,
+      "pan": -0.26,
+      "pitch": {
+        "start_hz": 660,
+        "end_hz": 660
+      },
+      "adsr": {
+        "attack_ms": 12,
+        "decay_ms": 28,
+        "sustain": 0.14,
+        "release_ms": 62
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 40,
+      "duration_ms": 120,
+      "gain": 0.20,
+      "pan": 0.26,
+      "pitch": {
+        "start_hz": 330,
+        "end_hz": 330
+      },
+      "adsr": {
+        "attack_ms": 12,
+        "decay_ms": 28,
+        "sustain": 0.14,
+        "release_ms": 62
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 80,
+      "duration_ms": 90,
+      "gain": 0.13,
+      "pan": -0.16,
+      "pitch": {
+        "start_hz": 880,
+        "end_hz": 880
+      },
+      "adsr": {
+        "attack_ms": 16,
+        "decay_ms": 20,
+        "sustain": 0.08,
+        "release_ms": 50
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 80,
+      "duration_ms": 90,
+      "gain": 0.13,
+      "pan": 0.16,
+      "pitch": {
+        "start_hz": 220,
+        "end_hz": 220
+      },
+      "adsr": {
+        "attack_ms": 16,
+        "decay_ms": 20,
+        "sustain": 0.08,
+        "release_ms": 50
+      }
+    }
+  ],
+  "effects": {
+    "delay": {
+      "delay_ms": 65,
+      "mix": 0.08,
+      "feedback": 0.09
+    }
+  }
+}

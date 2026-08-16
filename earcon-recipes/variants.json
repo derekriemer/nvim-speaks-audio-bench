@@ -1,0 +1,24 @@
+{
+  "variants": {
+    "default": {
+      "pitch": 1.0,
+      "duration": 1.0,
+      "gain": 1.0
+    },
+    "soft": {
+      "pitch": 0.94,
+      "duration": 1.14,
+      "gain": 0.72
+    },
+    "bright": {
+      "pitch": 1.14,
+      "duration": 0.84,
+      "gain": 0.9
+    },
+    "compact": {
+      "pitch": 1.0,
+      "duration": 0.7,
+      "gain": 0.95
+    }
+  }
+}

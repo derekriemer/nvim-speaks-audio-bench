@@ -1,0 +1,58 @@
+{
+  "id": "fold_close",
+  "description": "Falling collapse gesture for closing or collapsing a fold.",
+  "tail_ms": 45,
+  "gain": 0.80,
+  "voices": [
+    {
+      "waveform": "sine",
+      "duration_ms": 78,
+      "gain": 0.21,
+      "pan": 0.2,
+      "pitch": {
+        "start_hz": 659,
+        "end_hz": 659
+      },
+      "adsr": {
+        "attack_ms": 4,
+        "decay_ms": 16,
+        "sustain": 0.10,
+        "release_ms": 34
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 30,
+      "duration_ms": 82,
+      "gain": 0.23,
+      "pan": 0.0,
+      "pitch": {
+        "start_hz": 523,
+        "end_hz": 523
+      },
+      "adsr": {
+        "attack_ms": 5,
+        "decay_ms": 18,
+        "sustain": 0.12,
+        "release_ms": 38
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 66,
+      "duration_ms": 90,
+      "gain": 0.26,
+      "pan": -0.18,
+      "pitch": {
+        "start_hz": 392,
+        "end_hz": 392
+      },
+      "adsr": {
+        "attack_ms": 6,
+        "decay_ms": 20,
+        "sustain": 0.14,
+        "release_ms": 42
+      }
+    }
+  ]
+}

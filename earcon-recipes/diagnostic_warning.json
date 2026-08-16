@@ -1,0 +1,41 @@
+{
+  "id": "diagnostic_warning",
+  "description": "Softer two-note descending tone for LSP warnings.",
+  "tail_ms": 38,
+  "gain": 0.88,
+  "voices": [
+    {
+      "waveform": "triangle",
+      "duration_ms": 96,
+      "gain": 0.26,
+      "pan": -0.14,
+      "pitch": {
+        "start_hz": 480,
+        "end_hz": 330
+      },
+      "adsr": {
+        "attack_ms": 2,
+        "decay_ms": 28,
+        "sustain": 0.12,
+        "release_ms": 48
+      }
+    },
+    {
+      "waveform": "sine",
+      "delay_ms": 46,
+      "duration_ms": 88,
+      "gain": 0.22,
+      "pan": 0.14,
+      "pitch": {
+        "start_hz": 420,
+        "end_hz": 288
+      },
+      "adsr": {
+        "attack_ms": 1,
+        "decay_ms": 24,
+        "sustain": 0.08,
+        "release_ms": 48
+      }
+    }
+  ]
+}

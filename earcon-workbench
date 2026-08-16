@@ -1,0 +1,483 @@
+#!/usr/bin/env python3
+"""Generate and preview nvim-speaks earcons from JSON synth recipes."""
+
+from __future__ import annotations
+
+import argparse
+import html
+import json
+import math
+import random
+import shutil
+import subprocess
+import sys
+import time
+import wave
+from pathlib import Path
+from typing import Any
+
+
+SAMPLE_RATE = 44_100
+PLAY_TIMEOUT_SECONDS = 5
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA_DIR = SCRIPT_DIR / "earcon-recipes"
+
+
+def number(value: Any, default: float) -> float:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
+def clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def frames(ms: float, duration_scale: float = 1.0) -> int:
+    return max(0, int(SAMPLE_RATE * ms * duration_scale / 1000))
+
+
+def oscillator(waveform: str, phase: float, rng: random.Random) -> float:
+    if waveform == "triangle":
+        return 2.0 * abs(2.0 * ((phase / (2.0 * math.pi)) % 1.0) - 1.0) - 1.0
+    if waveform == "square":
+        return 1.0 if math.sin(phase) >= 0.0 else -1.0
+    if waveform == "saw":
+        return 2.0 * ((phase / (2.0 * math.pi)) % 1.0) - 1.0
+    if waveform == "noise":
+        return rng.uniform(-1.0, 1.0)
+    return math.sin(phase)
+
+
+def adsr_gain(index: int, total: int, adsr: dict[str, Any]) -> float:
+    attack = frames(number(adsr.get("attack_ms"), 2.0))
+    decay = frames(number(adsr.get("decay_ms"), 18.0))
+    release = frames(number(adsr.get("release_ms"), 30.0))
+    sustain = clamp(number(adsr.get("sustain"), 0.0), 0.0, 1.0)
+
+    if attack > 0 and index < attack:
+        return index / attack
+    decay_start = attack
+    if decay > 0 and index < decay_start + decay:
+        progress = (index - decay_start) / decay
+        return 1.0 + ((sustain - 1.0) * progress)
+    release_start = max(0, total - release)
+    if release > 0 and index >= release_start:
+        progress = (index - release_start) / release
+        return sustain * (1.0 - progress)
+    return sustain
+
+
+def curve_progress(progress: float, curve: str) -> float:
+    if curve == "exp":
+        return progress * progress
+    if curve == "log":
+        return math.sqrt(progress)
+    return progress
+
+
+def voice_hz(voice: dict[str, Any], index: int, total: int, pitch_scale: float) -> float:
+    pitch = voice.get("pitch") if isinstance(voice.get("pitch"), dict) else {}
+    start_hz = number(pitch.get("start_hz"), number(voice.get("hz"), 440.0))
+    end_hz = number(pitch.get("end_hz"), start_hz)
+    progress = curve_progress(index / max(1, total - 1), str(pitch.get("curve", "linear")))
+    return (start_hz + ((end_hz - start_hz) * progress)) * pitch_scale
+
+
+def apply_filter(samples: list[float], filter_spec: dict[str, Any]) -> list[float]:
+    kind = filter_spec.get("type")
+    cutoff = number(filter_spec.get("cutoff_hz"), 0.0)
+    if kind not in {"lowpass", "highpass"} or cutoff <= 0:
+        return samples
+
+    rc = 1.0 / (2.0 * math.pi * cutoff)
+    dt = 1.0 / SAMPLE_RATE
+    alpha = dt / (rc + dt)
+    low = 0.0
+    out: list[float] = []
+    for sample in samples:
+        low = low + alpha * (sample - low)
+        out.append(low if kind == "lowpass" else sample - low)
+    return out
+
+
+def render_voice(
+    voice: dict[str, Any],
+    pitch_scale: float,
+    duration_scale: float,
+    gain_scale: float,
+    seed: int,
+) -> tuple[list[float], list[float], int]:
+    total = frames(number(voice.get("duration_ms"), 80.0), duration_scale)
+    delay = frames(number(voice.get("delay_ms"), 0.0), duration_scale)
+    gain = number(voice.get("gain"), 0.3) * gain_scale
+    pan = clamp(number(voice.get("pan"), 0.0), -1.0, 1.0)
+    left_gain = math.cos((pan + 1.0) * math.pi / 4.0)
+    right_gain = math.sin((pan + 1.0) * math.pi / 4.0)
+    waveform = str(voice.get("waveform", "sine"))
+    adsr = voice.get("adsr") if isinstance(voice.get("adsr"), dict) else {}
+    rng = random.Random(seed + int(number(voice.get("noise_seed"), 0.0)))
+    phase = number(voice.get("phase"), 0.0)
+    mono: list[float] = []
+
+    for index in range(total):
+        hz = voice_hz(voice, index, total, pitch_scale)
+        phase += 2.0 * math.pi * hz / SAMPLE_RATE
+        sample = oscillator(waveform, phase, rng) * gain * adsr_gain(index, total, adsr)
+        mono.append(sample)
+
+    filter_spec = voice.get("filter") if isinstance(voice.get("filter"), dict) else {}
+    mono = apply_filter(mono, filter_spec)
+    return [sample * left_gain for sample in mono], [sample * right_gain for sample in mono], delay
+
+
+def mix_voice(stereo: list[list[float]], left: list[float], right: list[float], offset: int) -> None:
+    needed = offset + max(len(left), len(right))
+    while len(stereo[0]) < needed:
+        stereo[0].append(0.0)
+        stereo[1].append(0.0)
+    for index, sample in enumerate(left):
+        stereo[0][offset + index] += sample
+    for index, sample in enumerate(right):
+        stereo[1][offset + index] += sample
+
+
+def apply_delay(stereo: list[list[float]], effect: dict[str, Any]) -> None:
+    delay = frames(number(effect.get("delay_ms"), 0.0))
+    mix = clamp(number(effect.get("mix"), 0.0), 0.0, 1.0)
+    feedback = clamp(number(effect.get("feedback"), 0.0), 0.0, 0.9)
+    if delay <= 0 or mix <= 0:
+        return
+
+    tail = delay * 3
+    stereo[0].extend([0.0] * tail)
+    stereo[1].extend([0.0] * tail)
+    for channel in (0, 1):
+        for index in range(delay, len(stereo[channel])):
+            stereo[channel][index] += stereo[channel][index - delay] * mix
+            if index >= delay * 2:
+                stereo[channel][index] += stereo[channel][index - (delay * 2)] * feedback * mix
+
+
+def normalize(stereo: list[list[float]]) -> list[list[float]]:
+    peak = max((abs(sample) for channel in stereo for sample in channel), default=0.0)
+    if peak <= 0.0:
+        return stereo
+    scale = min(0.98 / peak, 1.0)
+    return [[sample * scale for sample in channel] for channel in stereo]
+
+
+def render_earcon(recipe: dict[str, Any], variant: dict[str, Any]) -> list[list[float]]:
+    pitch_scale = number(variant.get("pitch"), 1.0)
+    duration_scale = number(variant.get("duration"), 1.0)
+    gain_scale = number(variant.get("gain"), 1.0) * number(recipe.get("gain"), 1.0)
+    seed = int(number(recipe.get("seed"), 0.0))
+    stereo = [[], []]
+
+    voices = recipe.get("voices")
+    if not isinstance(voices, list) or not voices:
+        raise RuntimeError(f"{recipe.get('id', '<unknown>')}: expected non-empty voices array")
+
+    for index, voice in enumerate(voices):
+        if not isinstance(voice, dict):
+            raise RuntimeError(f"{recipe.get('id', '<unknown>')}: voice {index} must be an object")
+        left, right, offset = render_voice(voice, pitch_scale, duration_scale, gain_scale, seed + index)
+        mix_voice(stereo, left, right, offset)
+
+    tail = frames(number(recipe.get("tail_ms"), 35.0), duration_scale)
+    stereo[0].extend([0.0] * tail)
+    stereo[1].extend([0.0] * tail)
+
+    effects = recipe.get("effects") if isinstance(recipe.get("effects"), dict) else {}
+    delay = effects.get("delay") if isinstance(effects.get("delay"), dict) else {}
+    apply_delay(stereo, delay)
+    return normalize(stereo)
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as file:
+        data = json.load(file)
+    if not isinstance(data, dict):
+        raise RuntimeError(f"{path}: expected JSON object")
+    return data
+
+
+def load_variants(data_dir: Path) -> dict[str, dict[str, Any]]:
+    data = load_json(data_dir / "variants.json")
+    variants = data.get("variants")
+    if not isinstance(variants, dict):
+        raise RuntimeError(f"{data_dir / 'variants.json'}: expected variants object")
+    out = {}
+    for name, settings in variants.items():
+        if not isinstance(settings, dict):
+            raise RuntimeError(f"variant {name}: expected object")
+        out[str(name)] = settings
+    return out
+
+
+def load_recipes(data_dir: Path) -> dict[str, dict[str, Any]]:
+    recipes = {}
+    for path in sorted(data_dir.glob("*.json")):
+        if path.name == "variants.json":
+            continue
+        recipe = load_json(path)
+        earcon_id = str(recipe.get("id") or path.stem)
+        recipe["id"] = earcon_id
+        recipes[earcon_id] = recipe
+    if not recipes:
+        raise RuntimeError(f"{data_dir}: no earcon recipe JSON files found")
+    return recipes
+
+
+def write_wav(path: Path, stereo: list[list[float]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    length = max(len(stereo[0]), len(stereo[1]))
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(2)
+        out.setsampwidth(2)
+        out.setframerate(SAMPLE_RATE)
+        frames_out = bytearray()
+        for index in range(length):
+            for channel in (0, 1):
+                sample = stereo[channel][index] if index < len(stereo[channel]) else 0.0
+                value = clamp(sample, -1.0, 1.0)
+                frames_out.extend(int(value * 32767).to_bytes(2, byteorder="little", signed=True))
+        out.writeframes(bytes(frames_out))
+
+
+def verify_wav(path: Path) -> tuple[int, float]:
+    with wave.open(str(path), "rb") as wav:
+        if wav.getnchannels() != 2:
+            raise RuntimeError(f"{path}: expected stereo WAV")
+        if wav.getsampwidth() != 2:
+            raise RuntimeError(f"{path}: expected 16-bit PCM WAV")
+        if wav.getframerate() != SAMPLE_RATE:
+            raise RuntimeError(f"{path}: expected {SAMPLE_RATE} Hz sample rate")
+        frame_count = wav.getnframes()
+        if frame_count <= 0:
+            raise RuntimeError(f"{path}: expected audio frames")
+        duration_ms = frame_count * 1000 / wav.getframerate()
+    return frame_count, duration_ms
+
+
+def windows_path(path: Path) -> str:
+    wslpath = shutil.which("wslpath")
+    if wslpath:
+        result = subprocess.run(
+            [wslpath, "-w", str(path)],
+            check=True,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        return result.stdout.strip()
+    return str(path)
+
+
+def powershell_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def player_command(path: Path) -> list[str] | None:
+    candidates = (
+        ("paplay", [str(path)]),
+        ("pw-play", [str(path)]),
+        ("aplay", ["-q", str(path)]),
+        ("ffplay", ["-nodisp", "-autoexit", "-loglevel", "quiet", str(path)]),
+        ("afplay", [str(path)]),
+    )
+    for name, args in candidates:
+        exe = shutil.which(name)
+        if exe:
+            return [exe, *args]
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    if powershell:
+        return [
+            powershell,
+            "-NoProfile",
+            "-Command",
+            f"(New-Object Media.SoundPlayer {powershell_string(windows_path(path))}).PlaySync()",
+        ]
+    return None
+
+
+def play(path: Path) -> None:
+    command = player_command(path)
+    if not command:
+        raise RuntimeError("no audio player found; install paplay, aplay, ffplay, or afplay")
+    subprocess.run(command, check=True, timeout=PLAY_TIMEOUT_SECONDS)
+
+
+def selected_ids(args: argparse.Namespace, recipes: dict[str, dict[str, Any]]) -> list[str]:
+    if args.all:
+        return list(recipes)
+    if args.id:
+        return args.id
+    return list(recipes)
+
+
+def selected_variants(args: argparse.Namespace, variants: dict[str, dict[str, Any]]) -> list[str]:
+    if args.html:
+        return list(variants)
+    return [args.variant]
+
+
+def generate_wav(
+    out_dir: Path,
+    variant: str,
+    earcon_id: str,
+    recipes: dict[str, dict[str, Any]],
+    variants: dict[str, dict[str, Any]],
+) -> Path:
+    wav = out_dir / variant / f"{earcon_id}.wav"
+    write_wav(wav, render_earcon(recipes[earcon_id], variants[variant]))
+    return wav
+
+
+def write_html(out_dir: Path, ids: list[str], variants: dict[str, dict[str, Any]]) -> Path:
+    rows = []
+    for earcon_id in ids:
+        cells = [f"<th scope=\"row\">{html.escape(earcon_id)}</th>"]
+        for variant in variants:
+            src = f"{html.escape(variant)}/{html.escape(earcon_id)}.wav"
+            cells.append(
+                "<td>"
+                f"<audio controls preload=\"none\" src=\"{src}\"></audio>"
+                f"<a href=\"{src}\">wav</a>"
+                "</td>"
+            )
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+
+    variant_headers = "".join(f"<th scope=\"col\">{html.escape(name)}</th>" for name in variants)
+    document = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nvim-speaks earcon workbench</title>
+  <style>
+    body {{
+      color: #111;
+      background: #f6f7f9;
+      font: 16px system-ui, sans-serif;
+      margin: 0;
+      padding: 24px;
+    }}
+    main {{
+      max-width: 1100px;
+      margin: 0 auto;
+    }}
+    h1 {{
+      font-size: 24px;
+      margin: 0 0 16px;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }}
+    th, td {{
+      border: 1px solid #d6d9df;
+      padding: 10px;
+      text-align: left;
+      vertical-align: middle;
+    }}
+    th {{
+      background: #eceff3;
+    }}
+    audio {{
+      display: block;
+      width: 100%;
+      min-width: 160px;
+      margin-bottom: 4px;
+    }}
+    a {{
+      color: #0645ad;
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>nvim-speaks earcon workbench</h1>
+    <table>
+      <thead>
+        <tr><th scope="col">earcon</th>{variant_headers}</tr>
+      </thead>
+      <tbody>
+        {"".join(rows)}
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>
+"""
+    path = out_dir / "index.html"
+    path.write_text(document, encoding="utf-8")
+    return path
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate and preview protocol earcons")
+    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument("--id", action="append", help="earcon id to generate")
+    parser.add_argument("--all", action="store_true", help="generate every earcon")
+    parser.add_argument("--variant", default="default")
+    parser.add_argument("--out", type=Path, default=Path("/tmp/nvim-speaks-earcons"))
+    parser.add_argument("--play", action="store_true", help="play each generated WAV")
+    parser.add_argument("--html", action="store_true", help="write an HTML audition board")
+    parser.add_argument("--verify", action="store_true", help="verify generated WAV structure")
+    parser.add_argument("--repeat", type=int, default=1, help="play each earcon this many times")
+    parser.add_argument("--gap-ms", type=int, default=250, help="gap between repeated plays")
+    parser.add_argument("--list", action="store_true", help="list available ids and variants")
+    args = parser.parse_args()
+
+    recipes = load_recipes(args.data_dir)
+    variants = load_variants(args.data_dir)
+    if args.variant not in variants:
+        raise RuntimeError(f"unknown variant {args.variant!r}; run --list")
+
+    if args.list:
+        print("ids:")
+        for name in recipes:
+            print(f"  {name}")
+        print("variants:")
+        for name in variants:
+            print(f"  {name}")
+        return 0
+
+    ids = selected_ids(args, recipes)
+    missing = [earcon_id for earcon_id in ids if earcon_id not in recipes]
+    if missing:
+        raise RuntimeError(f"unknown earcon id(s): {', '.join(missing)}")
+
+    for variant in selected_variants(args, variants):
+        for earcon_id in ids:
+            wav = generate_wav(args.out, variant, earcon_id, recipes, variants)
+            if args.verify:
+                frame_count, duration_ms = verify_wav(wav)
+                print(f"{wav} ({frame_count} frames, {duration_ms:.1f} ms)")
+            else:
+                print(wav)
+            if args.play:
+                for index in range(max(1, args.repeat)):
+                    play(wav)
+                    if index < args.repeat - 1 and args.gap_ms > 0:
+                        time.sleep(args.gap_ms / 1000)
+
+    if args.html:
+        index = write_html(args.out, ids, variants)
+        print(index)
+
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except RuntimeError as exc:
+        print(f"earcon-workbench: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    except subprocess.TimeoutExpired:
+        print("earcon-workbench: audio player timed out", file=sys.stderr)
+        raise SystemExit(1)
