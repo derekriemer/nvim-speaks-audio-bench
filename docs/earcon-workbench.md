@@ -62,6 +62,23 @@ List available recipe ids and variants:
 
 Current variants are `default`, `soft`, `bright`, and `compact`.
 
+## NVDA Export
+
+The NVDA add-on plays generated WAV assets for named earcons using NVDA speech
+sequence wave commands. Because NVDA's wave command does not block subsequent
+speech sequence items, the add-on follows each wave with a break matching the
+WAV duration. Refresh those assets from the umbrella workspace root:
+
+```bash
+python utils/audio-bench/earcon-workbench \
+  --stable \
+  --export-nvda-wavs servers/nvda-server/addon/globalPlugins/nvim_speaks_server/earcons
+```
+
+The `--stable` flag selects the protocol ids currently emitted by plugin speech
+rendering and advertised by maintained backends, leaving experimental candidates
+out of add-on capabilities.
+
 ## Recipe Files
 
 Each earcon recipe is one JSON file in `earcon-recipes/`. A recipe has

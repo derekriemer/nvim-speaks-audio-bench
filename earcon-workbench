@@ -335,6 +335,39 @@ def generate_wav(
     return wav
 
 
+def write_nvda_wavs(
+    out_dir: Path,
+    ids: list[str],
+    recipes: dict[str, dict[str, Any]],
+    variants: dict[str, dict[str, Any]],
+    variant: str,
+) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for earcon_id in ids:
+        write_wav(out_dir / f"{earcon_id}.wav", render_earcon(recipes[earcon_id], variants[variant]))
+    return out_dir
+
+
+def stable_protocol_ids(recipes: dict[str, dict[str, Any]]) -> list[str]:
+    wanted = [
+        "boundary",
+        "cap",
+        "completion_accept",
+        "completion_dismiss",
+        "completion_open",
+        "cursor",
+        "diagnostic_error",
+        "diagnostic_hint",
+        "diagnostic_info",
+        "diagnostic_warning",
+        "fold_close",
+        "fold_closed",
+        "fold_none",
+        "fold_open",
+    ]
+    return [earcon_id for earcon_id in wanted if earcon_id in recipes]
+
+
 def write_html(out_dir: Path, ids: list[str], variants: dict[str, dict[str, Any]]) -> Path:
     rows = []
     for earcon_id in ids:
@@ -430,6 +463,8 @@ def main() -> int:
     parser.add_argument("--repeat", type=int, default=1, help="play each earcon this many times")
     parser.add_argument("--gap-ms", type=int, default=250, help="gap between repeated plays")
     parser.add_argument("--list", action="store_true", help="list available ids and variants")
+    parser.add_argument("--stable", action="store_true", help="select stable protocol ids")
+    parser.add_argument("--export-nvda-wavs", type=Path, help="write WAV assets for the NVDA add-on")
     args = parser.parse_args()
 
     recipes = load_recipes(args.data_dir)
@@ -446,10 +481,14 @@ def main() -> int:
             print(f"  {name}")
         return 0
 
-    ids = selected_ids(args, recipes)
+    ids = stable_protocol_ids(recipes) if args.stable else selected_ids(args, recipes)
     missing = [earcon_id for earcon_id in ids if earcon_id not in recipes]
     if missing:
         raise RuntimeError(f"unknown earcon id(s): {', '.join(missing)}")
+
+    if args.export_nvda_wavs:
+        print(write_nvda_wavs(args.export_nvda_wavs, ids, recipes, variants, args.variant))
+        return 0
 
     for variant in selected_variants(args, variants):
         for earcon_id in ids:
